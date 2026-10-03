@@ -50,7 +50,9 @@ function initDB() {
   dbInitialized = true;
 
   try {
-    const dataDir = path.join(process.cwd(), 'data');
+    const cwdData = path.join(process.cwd(), 'data');
+    const dirnameData = path.join(__dirname, '..', 'data');
+    const dataDir = fs.existsSync(cwdData) ? cwdData : dirnameData;
 
     // 1. Load inventory.dat
     const invPath = path.join(dataDir, 'inventory.dat');
@@ -279,6 +281,9 @@ module.exports = async (req, res) => {
 
   // Normalize route url
   let url = req.url || '/';
+  if ((url === '/api/index.js' || url.startsWith('/api/index.js?') || url === '/api' || url === '/api/') && req.headers['x-forwarded-uri']) {
+    url = req.headers['x-forwarded-uri'];
+  }
   const qIdx = url.indexOf('?');
   const pathOnly = qIdx !== -1 ? url.slice(0, qIdx) : url;
   const searchParams = new URLSearchParams(qIdx !== -1 ? url.slice(qIdx + 1) : '');

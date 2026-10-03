@@ -1,5 +1,10 @@
 {
   "name": "medicine-inventory-using-oops",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "data/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
