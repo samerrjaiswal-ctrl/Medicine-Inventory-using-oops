@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medical Inventory Management System</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Authentication guard: redirect immediately if not logged in
+    if (sessionStorage.getItem('loggedIn') !== 'true') {
+      window.location.replace('login.html');
+    }
+  </script>
+</head>
+<body>
+
+  <!-- Offline / Backend Unreachable Warning Banner -->
+  <div id="server-offline-banner" class="server-banner">
+    <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#alert-triangle"></use></svg> <strong>Backend Disconnected:</strong> Cannot connect to the C++ server. Please make sure <code>./server</code> (or <code>server.exe</code>) is running at <code>http://localhost:8080/</code>.
+  </div>
+
+  <!-- App Header -->
+  <header class="app-header no-print">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-icon">
+          <svg class="icon" width="22" height="22" aria-hidden="true"><use href="assets/icons.svg#shield-plus"></use></svg>
+        </div>
+        <div>
+          <div class="brand-title">Medical Inventory System</div>
+          <div class="brand-subtitle">Smart FEFO Pharmacy &amp; Stock Control</div>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <div class="system-date-pill">
+          <span>Date:</span>
+          <strong id="header-today-date">--/--/----</strong>
+        </div>
+        <div id="header-status-badge" class="status-indicator online">
+          <span class="status-dot"></span>
+          <span id="header-status-text">Connected</span>
+        </div>
+        <button id="btn-logout" class="btn btn-secondary btn-sm" onclick="logout()">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#log-out"></use></svg> Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Top Navigation Tabs (4 Screens) -->
+  <nav class="nav-tabs-wrapper no-print">
+    <ul class="nav-tabs" role="tablist">
+      <li>
+        <button type="button" id="tab-btn-dashboard" class="nav-tab-btn active" onclick="switchTab('dashboard')">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#layout-dashboard"></use></svg> Dashboard
+        </button>
+      </li>
+      <li>
+        <button type="button" id="tab-btn-inventory" class="nav-tab-btn" onclick="switchTab('inventory')">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#package"></use></svg> Inventory
+        </button>
+      </li>
+      <li>
+        <button type="button" id="tab-btn-alerts-reports" class="nav-tab-btn" onclick="switchTab('alerts-reports')">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bell"></use></svg> Alerts &amp; Reports
+        </button>
+      </li>
+      <li>
+        <button type="button" id="tab-btn-billing" class="nav-tab-btn" onclick="switchTab('billing')">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#receipt"></use></svg> Billing
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container no-print"></div>
+
+  <!-- Main Content Panes -->
+  <main class="main-content">
+
+    <!-- =========================================================================
+         TAB 1: DASHBOARD
+         ========================================================================= -->
+    <section id="pane-dashboard" class="tab-pane active">
+
+      <!-- A) Hero Section -->
+      <div class="hero-card" id="hero-banner">
+        <div class="hero-content-col">
+          <h1 class="hero-heading">Medical Inventory Management System</h1>
+          <p class="hero-subtext">Track medicines, manage stock, monitor expiry dates, handle billing and stay alerted — all in one place.</p>
+          <div class="hero-chips-row">
+            <span class="hero-chip" onclick="switchTab('inventory')" title="Go to Inventory"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#package"></use></svg> Track Stock</span>
+            <span class="hero-chip" onclick="switchTab('alerts-reports'); switchReportSubTab('expired');" title="View Expired Stock"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#hourglass"></use></svg> Monitor Expiry</span>
+            <span class="hero-chip" onclick="switchTab('alerts-reports')" title="View Alerts"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bell-ring"></use></svg> Get Alerts</span>
+            <span class="hero-chip" onclick="switchTab('alerts-reports')" title="View Reports"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg> Generate Reports</span>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary" onclick="switchTab('inventory')">
+              Get Started <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg>
+            </button>
+          </div>
+        </div>
+        <div class="hero-artwork-col">
+          <img src="assets/hero-illustration.png" alt="Medical Inventory Illustration" class="hero-crop-img">
+        </div>
+      </div>
+
+      <!-- 10 Metric KPI Summary Cards -->
+      <div class="kpi-grid" id="dashboard-summary-cards">
+        <div class="kpi-card kpi-teal">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#pill"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Total Medicines</div>
+            <div id="kpi-medicines" class="kpi-value">-</div>
+            <div class="kpi-subtext">Active items in catalog</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-blue">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#layers"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Total Batches</div>
+            <div id="kpi-batches" class="kpi-value">-</div>
+            <div class="kpi-subtext">Tracked stock batches</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-green">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#boxes"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Total Units</div>
+            <div id="kpi-units" class="kpi-value">-</div>
+            <div class="kpi-subtext">Total individual units</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-red">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#calendar-x"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Expired Batches</div>
+            <div id="kpi-expired" class="kpi-value">-</div>
+            <div class="kpi-subtext">Requires immediate purge</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-orange">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#hourglass"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Near Expiry (&le;90d)</div>
+            <div id="kpi-near-expiry" class="kpi-value">-</div>
+            <div class="kpi-subtext">At-risk within 90 days</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-purple">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#trending-down"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Low Stock Items</div>
+            <div id="kpi-low-stock" class="kpi-value">-</div>
+            <div class="kpi-subtext">Below reorder threshold</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-blue">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Total Bills</div>
+            <div id="kpi-bills" class="kpi-value">-</div>
+            <div class="kpi-subtext">Invoices generated</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-green">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#indian-rupee"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Today's Sales</div>
+            <div id="kpi-today-sales" class="kpi-value">₹0.00</div>
+            <div class="kpi-subtext">Revenue for current day</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-orange">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#bell-ring"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">Active Alerts</div>
+            <div id="kpi-alert-count" class="kpi-value">-</div>
+            <div class="kpi-subtext">Attention needed</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-teal">
+          <div class="kpi-icon"><svg class="icon" width="24" height="24" aria-hidden="true"><use href="assets/icons.svg#calendar"></use></svg></div>
+          <div class="kpi-info">
+            <div class="kpi-label">System Date</div>
+            <div id="kpi-today" class="kpi-value" style="font-size: 1.15rem;">--/--/----</div>
+            <div class="kpi-subtext">C++ backend reference</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: INVENTORY
+         ========================================================================= -->
+    <section id="pane-inventory" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#package"></use></svg> Medicines &amp; Batch Inventory</div>
+            <div class="card-subtitle">Click on any row to expand batches, update stock or adjust expiry</div>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" onclick="openAddMedicineModal()">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#plus"></use></svg> Add Medicine
+            </button>
+            <button class="btn btn-danger" onclick="promptRemoveExpired()">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trash-2"></use></svg> Remove Expired
+            </button>
+            <button class="btn btn-secondary" onclick="loadInventory()">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Filter / Search Toolbar -->
+          <div class="action-toolbar">
+            <div class="search-box-wrapper">
+              <span class="search-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#search"></use></svg></span>
+              <input type="text" id="inventory-search-input" class="search-input" placeholder="Search by name, ID, or category..." oninput="filterMedicinesTable()">
+            </div>
+            <div class="toolbar-actions">
+              <select id="inventory-cat-filter" class="form-control" style="width: auto; padding: 0.45rem 0.75rem;" onchange="filterMedicinesTable()">
+                <option value="ALL">All Categories</option>
+                <option value="V">V - Vital</option>
+                <option value="E">E - Essential</option>
+                <option value="D">D - Desirable</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Medicines Table -->
+          <div class="table-responsive">
+            <table class="app-table" id="medicines-table">
+              <thead>
+                <tr>
+                  <th style="width: 30px;"></th>
+                  <th>ID</th>
+                  <th>Medicine Name</th>
+                  <th>VED Category</th>
+                  <th>Price</th>
+                  <th>Total Qty</th>
+                  <th>Usable Qty</th>
+                  <th>Min Level</th>
+                  <th>Reorder Threshold</th>
+                  <th>Avg Daily Usage</th>
+                  <th>At-Risk Qty</th>
+                </tr>
+              </thead>
+              <tbody id="medicines-table-body">
+                <tr>
+                  <td colspan="11" class="table-empty-state">Loading medicines from backend...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: ALERTS & REPORTS
+         ========================================================================= -->
+    <section id="pane-alerts-reports" class="tab-pane">
+      <!-- Section A: Alerts with Level Filters -->
+      <div class="card no-print">
+        <div class="card-header">
+          <div>
+            <div class="card-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bell"></use></svg> Stock &amp; Expiry Alerts</div>
+            <div class="card-subtitle">Real-time alert engine warnings evaluated by severity</div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="loadAlerts()">
+            <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Refresh Alerts
+          </button>
+        </div>
+        <div class="card-body">
+          <!-- Filter Buttons by Level -->
+          <div class="filter-pills-bar">
+            <button type="button" class="filter-pill active" data-level="ALL" onclick="filterAlerts('ALL')">All (<span id="alert-cnt-all">0</span>)</button>
+            <button type="button" class="filter-pill" data-level="Expired" onclick="filterAlerts('Expired')">Expired (<span id="alert-cnt-expired">0</span>)</button>
+            <button type="button" class="filter-pill" data-level="Critical" onclick="filterAlerts('Critical')">Critical (<span id="alert-cnt-critical">0</span>)</button>
+            <button type="button" class="filter-pill" data-level="Warning" onclick="filterAlerts('Warning')">Warning (<span id="alert-cnt-warning">0</span>)</button>
+            <button type="button" class="filter-pill" data-level="Watch" onclick="filterAlerts('Watch')">Watch (<span id="alert-cnt-watch">0</span>)</button>
+            <button type="button" class="filter-pill" data-level="Low Stock" onclick="filterAlerts('Low Stock')">Low Stock (<span id="alert-cnt-lowstock">0</span>)</button>
+          </div>
+
+          <div id="alerts-full-list" class="alerts-list">
+            <div class="table-empty-state">Loading alerts...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section B: Reports as Sub-Tabs with Print Button -->
+      <div class="card">
+        <div class="card-header no-print">
+          <div>
+            <div class="card-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg> Inventory Audit &amp; Operational Reports</div>
+            <div class="card-subtitle">Official printable inventory reports directly generated by C++ ReportService</div>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Report Sub-Navigation -->
+          <div class="report-subnav no-print">
+            <button type="button" id="report-subtab-inv" class="report-subtab-btn active" onclick="switchReportSubTab('inventory')">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#package"></use></svg> Full Inventory Report
+            </button>
+            <button type="button" id="report-subtab-exp" class="report-subtab-btn" onclick="switchReportSubTab('expired')">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#calendar-x"></use></svg> Expired Stock Report
+            </button>
+            <button type="button" id="report-subtab-near" class="report-subtab-btn" onclick="switchReportSubTab('near-expiry')">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#hourglass"></use></svg> Near-Expiry Report
+            </button>
+            <button type="button" id="report-subtab-low" class="report-subtab-btn" onclick="switchReportSubTab('low-stock')">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-down"></use></svg> Low-Stock Reorder Report
+            </button>
+          </div>
+
+          <!-- Report Controls (Days input & Print button) -->
+          <div class="report-controls-bar no-print">
+            <div id="near-expiry-control" class="report-days-input-wrap" style="display: none;">
+              <label for="report-days-input"><strong>Days Threshold:</strong></label>
+              <input type="number" id="report-days-input" class="report-days-input" value="90" min="1" max="730">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="loadNearExpiryReport()">Apply</button>
+            </div>
+            <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="refreshCurrentReport()">
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Refresh
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="printReport()">
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#printer"></use></svg> Print Report
+              </button>
+            </div>
+          </div>
+
+          <!-- Report Title for Printing -->
+          <div id="report-print-header" style="margin-bottom: 1rem;">
+            <h3 id="report-heading" style="color: var(--text-main);">Full Inventory Report</h3>
+            <p id="report-subheading" style="font-size: 0.8rem; color: var(--text-muted);">Generated on --/--/----</p>
+          </div>
+
+          <!-- Report Table Container -->
+          <div class="table-responsive">
+            <table class="app-table" id="report-table">
+              <thead id="report-table-head">
+                <!-- Dynamically populated based on subtab -->
+              </thead>
+              <tbody id="report-table-body">
+                <tr>
+                  <td colspan="7" class="table-empty-state">Loading report data...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: BILLING
+         ========================================================================= -->
+    <section id="pane-billing" class="tab-pane">
+      <div class="billing-layout">
+
+        <!-- 1. Create Bill Card -->
+        <div class="billing-builder-card no-print">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#receipt"></use></svg> Create New Bill</h2>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">Generate patient invoice with automated FEFO batch allocation</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearBillCart()">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#eraser"></use></svg> Clear Form
+            </button>
+          </div>
+
+          <!-- FEFO Batch Selection Notice -->
+          <div class="fefo-notice-badge">
+            <svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#info"></use></svg>
+            <span><strong>Batch is selected automatically (FEFO):</strong> The C++ backend consumes earliest-expiring usable batches first.</span>
+          </div>
+
+          <!-- Buyer Input -->
+          <div class="form-group">
+            <label class="form-label" for="bill-buyer-input">Buyer / Patient Name</label>
+            <input type="text" id="bill-buyer-input" class="form-control" placeholder="Enter buyer name (default: Walk-in)" value="Walk-in">
+          </div>
+
+          <!-- Item Selection Form -->
+          <div class="item-picker-row">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="bill-med-select">Select Medicine</label>
+              <select id="bill-med-select" class="form-control" onchange="onBillMedicineSelected()">
+                <option value="">-- Choose medicine --</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="bill-qty-input">Quantity</label>
+              <input type="number" id="bill-qty-input" class="form-control" min="1" value="1">
+            </div>
+
+            <div>
+              <button class="btn btn-primary" onclick="addBillItem()" style="height: 40px;">
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#plus"></use></svg> Add Item
+              </button>
+            </div>
+          </div>
+
+          <!-- Items Draft Cart Table -->
+          <div class="bill-cart-table-wrap">
+            <table class="app-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">#</th>
+                  <th>Medicine</th>
+                  <th>Qty</th>
+                  <th>Unit Price</th>
+                  <th>Line Total</th>
+                  <th style="width: 60px; text-align: center;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="bill-cart-tbody">
+                <tr>
+                  <td colspan="6" class="table-empty-state" style="padding: 1.5rem;">No items added to bill yet. Select a medicine above.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Grand Total Bar -->
+            <div class="bill-total-bar">
+              <div class="bill-total-label">Grand Total:</div>
+              <div id="bill-grand-total" class="bill-total-amount">₹0.00</div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div style="display: flex; justify-content: flex-end;">
+            <button id="btn-generate-bill" class="btn btn-primary" style="padding: 0.65rem 1.4rem; font-size: 0.95rem;" onclick="generateBill()" disabled>
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#zap"></use></svg> Generate Bill
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Bill History Card -->
+        <div class="card">
+          <div class="card-header no-print">
+            <div>
+              <div class="card-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#history"></use></svg> Bill History</div>
+              <div class="card-subtitle">Invoices recorded in data/bills.dat (newest first)</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadBillHistory()">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Refresh History
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="app-table" id="bill-history-table">
+                <thead>
+                  <tr>
+                    <th>Bill ID</th>
+                    <th>Date</th>
+                    <th>Buyer</th>
+                    <th>Amount</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="bill-history-tbody">
+                  <tr>
+                    <td colspan="5" class="table-empty-state">Loading billing history...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       MODALS
+       ========================================================================= -->
+
+  <!-- Modal: Add Medicine -->
+  <div id="modal-add-medicine" class="modal-overlay no-print" onclick="if(event.target===this) closeModal('modal-add-medicine')">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#plus"></use></svg> Add Medicine / New Batch</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-add-medicine')" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <form id="form-add-medicine" onsubmit="submitAddMedicine(event)">
+        <div class="modal-body">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            If medicine name exists, the C++ backend adds this batch to it and updates price/threshold.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="add-name">Medicine Name *</label>
+            <input type="text" id="add-name" class="form-control" required placeholder="e.g. Paracetamol">
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="add-category">Category (VED) *</label>
+              <select id="add-category" class="form-control" required>
+                <option value="V">V - Vital (Life saving)</option>
+                <option value="E">E - Essential (Important)</option>
+                <option value="D" selected>D - Desirable (Routine)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="add-price">Unit Price (₹) *</label>
+              <input type="number" id="add-price" class="form-control" required min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="add-min-level">Min Level (Safety Stock)</label>
+              <input type="number" id="add-min-level" class="form-control" min="0" value="10">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="add-batch">Batch Number *</label>
+              <input type="text" id="add-batch" class="form-control" required placeholder="e.g. B101">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="add-qty">Batch Quantity *</label>
+              <input type="number" id="add-qty" class="form-control" required min="1" placeholder="100">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="add-expiry">Expiry Date (YYYY-MM-DD) *</label>
+              <input type="date" id="add-expiry" class="form-control" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-medicine')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Medicine</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Update Quantity (per batch) -->
+  <div id="modal-update-qty" class="modal-overlay no-print" onclick="if(event.target===this) closeModal('modal-update-qty')">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#layers"></use></svg> Update Batch Quantity</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-update-qty')" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <form id="form-update-qty" onsubmit="submitUpdateQuantity(event)">
+        <div class="modal-body">
+          <input type="hidden" id="edit-qty-med-key">
+          <div class="form-group">
+            <label class="form-label">Medicine</label>
+            <input type="text" id="edit-qty-med-name" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Batch Number</label>
+            <input type="text" id="edit-qty-batch" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-qty-input">New Quantity *</label>
+            <input type="number" id="edit-qty-input" class="form-control" required min="0">
+            <div class="form-hint">Set to 0 if batch is fully consumed or depleted.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-update-qty')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Quantity</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Update Expiry (per batch) -->
+  <div id="modal-update-expiry" class="modal-overlay no-print" onclick="if(event.target===this) closeModal('modal-update-expiry')">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#calendar"></use></svg> Update Batch Expiry</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-update-expiry')" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <form id="form-update-expiry" onsubmit="submitUpdateExpiry(event)">
+        <div class="modal-body">
+          <input type="hidden" id="edit-exp-med-key">
+          <div class="form-group">
+            <label class="form-label">Medicine</label>
+            <input type="text" id="edit-exp-med-name" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Batch Number</label>
+            <input type="text" id="edit-exp-batch" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-exp-date">New Expiry Date (YYYY-MM-DD) *</label>
+            <input type="date" id="edit-exp-date" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-update-expiry')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Expiry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmation Dialog (Custom confirm, no window.confirm) -->
+  <div id="modal-confirm" class="modal-overlay no-print" onclick="if(event.target===this) closeModal('modal-confirm')">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title" class="modal-title">Confirm Action</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-confirm')" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-modal-message" style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 0.5rem;"></p>
+        <p style="font-size: 0.8rem; color: var(--status-expired-text);">This operation cannot be reversed.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-confirm')">Cancel</button>
+        <button type="button" id="confirm-modal-btn" class="btn btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: View Bill Details -->
+  <div id="modal-bill-view" class="modal-overlay no-print" onclick="if(event.target===this) closeModal('modal-bill-view')">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="view-bill-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#receipt"></use></svg> Bill Details</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-bill-view')" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; background: var(--bg-card-alt); padding: 0.75rem 1rem; border-radius: var(--radius-md);">
+          <div><strong>Bill ID:</strong> <span id="view-bill-id">-</span></div>
+          <div><strong>Date:</strong> <span id="view-bill-date">-</span></div>
+          <div><strong>Buyer:</strong> <span id="view-bill-buyer">-</span></div>
+          <div><strong>Grand Total:</strong> <span id="view-bill-total" style="color: var(--primary); font-weight: 700;">-</span></div>
+        </div>
+
+        <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">
+          Purchased Items (FEFO Allocated Batches)
+        </h4>
+
+        <div class="table-responsive">
+          <table class="app-table">
+            <thead>
+              <tr>
+                <th>Medicine</th>
+                <th>Batch No</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="view-bill-items-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-bill-view')">Close</button>
+        <button type="button" class="btn btn-primary" id="view-bill-print-btn">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#printer"></use></svg> Print Receipt
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Plain Text Bill Print (operator<< format) -->
+  <div id="modal-bill-print" class="modal-overlay" onclick="if(event.target===this) closePrintModal()">
+    <div class="modal-dialog">
+      <div class="modal-header no-print">
+        <h3 class="modal-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#printer"></use></svg> Printable Bill Receipt</h3>
+        <button class="modal-close-btn" onclick="closePrintModal()" aria-label="Close dialog"><svg class="icon" width="18" height="18" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg></button>
+      </div>
+      <div class="modal-body">
+        <pre id="bill-print-pre" class="printable-receipt-pre"></pre>
+      </div>
+      <div class="modal-footer no-print">
+        <button type="button" class="btn btn-secondary" onclick="closePrintModal()">Close</button>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#printer"></use></svg> Print Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="script.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
